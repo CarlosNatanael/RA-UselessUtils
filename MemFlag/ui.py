@@ -1,11 +1,17 @@
 import customtkinter as ctk
 from logic import BitConverter
+import os
 
 class CalculadoraApp(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title("RA Tool - Cheevos Engineer")
-        self.geometry("650x520") # Um pouco mais de espaço para as abas
+        caminho_icone = os.path.join(os.path.dirname(__file__), "icon.ico")
+        try:
+            self.iconbitmap(caminho_icone)
+        except Exception as e:
+            print(f"Aviso: Não foi possível carregar o ícone. {e}")
+        self.geometry("650x520")
         self.resizable(False, False)
         
         ctk.set_appearance_mode("dark")
