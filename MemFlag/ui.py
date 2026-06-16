@@ -16,7 +16,7 @@ class CalculadoraApp(ctk.CTk):
             self.iconbitmap(caminho_icone)
         except Exception as e:
             print(f"Aviso: Não foi possível carregar o ícone. {e}")
-        self.geometry("650x520")
+        self.geometry("650x580")
         self.resizable(False, False)
         
         ctk.set_appearance_mode("dark")
@@ -46,9 +46,11 @@ class CalculadoraApp(ctk.CTk):
         
         self.tab_conv = self.tabview.add("Conversor & Flags")
         self.tab_ptr = self.tabview.add("Ponteiros & Offsets")
+        self.tab_list = self.tabview.add("Gerador de Listas")
         
         self.construir_aba_conversor()
         self.construir_aba_ponteiros()
+        self.construir_aba_listas()
 
     # ABA 1: CONVERSOR E FLAGS
     def construir_aba_conversor(self):
@@ -232,3 +234,56 @@ class CalculadoraApp(ctk.CTk):
         self.pointer_base.set("")
         self.pointer_offset.set("")
         self.pointer_target.set("")
+
+    # ABA 3: GERADOR DE LISTAS
+    def construir_aba_listas(self):
+        frame_topo = ctk.CTkFrame(self.tab_list, fg_color="transparent")
+        frame_topo.pack(pady=10)
+        
+        ctk.CTkLabel(frame_topo, text="Formato (Padding):", font=("Arial", 12, "bold")).pack(side="left", padx=5)
+        self.menu_padding = ctk.CTkOptionMenu(
+            frame_topo, 
+            values=["8-bit (0x00)", "16-bit (0x0000)", "32-bit (0x00000000)"]
+        )
+        self.menu_padding.pack(side="left", padx=5)
+        self.menu_padding.set("16-bit (0x0000)") # Padrão ideal para Code Notes gerais
+
+        frame_input = ctk.CTkFrame(self.tab_list, fg_color="transparent")
+        frame_input.pack(pady=5)
+        
+        ctk.CTkLabel(frame_input, text="Intervalo (ex: 0x00-0x1f, 0x43, 0x45-0x4f):", font=("Arial", 12, "bold")).pack(pady=2)
+        self.entry_range = ctk.CTkEntry(frame_input, width=350, placeholder_text="Ex: 0-10, 15, 0x20-0x30")
+        self.entry_range.pack(pady=5)
+
+        btn_gerar = ctk.CTkButton(
+            frame_input, text="Gerar Esqueleto", command=self.gerar_lista, width=200
+        )
+        btn_gerar.pack(pady=5)
+
+        self.textbox_lista = ctk.CTkTextbox(self.tab_list, width=450, height=220)
+        self.textbox_lista.pack(pady=10)
+
+        btn_copiar = ctk.CTkButton(
+            self.tab_list, text="Copiar Tudo", command=self.copiar_lista, 
+            fg_color="#2A8C55", hover_color="#206A40", width=200
+        )
+        btn_copiar.pack(pady=5)
+
+    def gerar_lista(self):
+        range_str = self.entry_range.get()
+        padding_str = self.menu_padding.get()
+        
+        if "8-bit" in padding_str: num_bits = 8
+        elif "32-bit" in padding_str: num_bits = 32
+        else: num_bits = 16
+
+        resultado = BitConverter.parse_range_to_hex_list(range_str, num_bits)
+        
+        self.textbox_lista.delete("0.0", "end")
+        self.textbox_lista.insert("0.0", resultado)
+
+    def copiar_lista(self):
+        texto = self.textbox_lista.get("0.0", "end").strip()
+        if texto:
+            self.clipboard_clear()
+            self.clipboard_append(texto)

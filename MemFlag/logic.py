@@ -75,3 +75,34 @@ class BitConverter:
             return f"0x{max(0, base):06x}"
         except ValueError:
             return ""
+
+    @staticmethod
+    def parse_range_to_hex_list(range_str, num_bits):
+        """Lê uma string como '0x00-0x05, 0x0a' e gera uma lista pronta para o Code Notes"""
+        chars = num_bits // 4
+        results = []
+        
+        range_str = range_str.replace(" ", "")
+        if not range_str:
+            return ""
+
+        parts = range_str.split(",")
+        for part in parts:
+            if "-" in part:
+                subparts = part.split("-")
+                if len(subparts) == 2:
+                    try:
+                        start = int(subparts[0], 16)
+                        end = int(subparts[1], 16)
+                        for val in range(min(start, end), max(start, end) + 1):
+                            results.append(f"0x{val:0{chars}x} = ")
+                    except ValueError:
+                        continue
+            else:
+                try:
+                    val = int(part, 16)
+                    results.append(f"0x{val:0{chars}x} = ")
+                except ValueError:
+                    continue
+                    
+        return "\n".join(results)
