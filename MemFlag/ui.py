@@ -5,7 +5,7 @@ class CalculadoraApp(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title("RA Bit Flag & Hex Converter")
-        self.geometry("480x300")
+        self.geometry("510x340")  # Aumentado levemente a altura para acomodar o botão
         self.resizable(False, False)
         
         # Configuração do Tema Dark Nativo
@@ -41,7 +41,7 @@ class CalculadoraApp(ctk.CTk):
             
             cb = ctk.CTkCheckBox(
                 grid_bits, 
-                text=f"b{bit_index}", 
+                text=f"Bit{bit_index}", 
                 variable=self.bits[bit_index], 
                 command=self.atualizar_pelos_bits,
                 width=45,
@@ -52,7 +52,7 @@ class CalculadoraApp(ctk.CTk):
 
         # --- Frame dos Inputs ---
         self.frame_inputs = ctk.CTkFrame(self, fg_color="transparent")
-        self.frame_inputs.pack(pady=10)
+        self.frame_inputs.pack(pady=5)
 
         ctk.CTkLabel(self.frame_inputs, text="Decimal:", font=("Arial", 12, "bold")).grid(row=0, column=0, padx=10, sticky="e")
         entrada_dec = ctk.CTkEntry(self.frame_inputs, textvariable=self.dec_var, width=140)
@@ -63,6 +63,22 @@ class CalculadoraApp(ctk.CTk):
         entrada_hex = ctk.CTkEntry(self.frame_inputs, textvariable=self.hex_var, width=140)
         entrada_hex.grid(row=1, column=1, pady=5)
         entrada_hex.bind("<KeyRelease>", self.atualizar_pelo_hexadecimal)
+
+        self.btn_limpar = ctk.CTkButton(
+            self.frame_inputs, 
+            text="Limpar Tudo", 
+            command=self.limpar_campos,
+            fg_color="#A83232",
+            hover_color="#822626",
+            width=140
+        )
+        self.btn_limpar.grid(row=2, column=0, columnspan=2, pady=15)
+
+    def limpar_campos(self):
+        """Zera todos os bits na interface e força a atualização dos textos para 0 e 0x00."""
+        for var in self.bits:
+            var.set(0)
+        self.atualizar_pelos_bits()
 
     def atualizar_pelos_bits(self):
         if self.updating: return
@@ -109,7 +125,6 @@ class CalculadoraApp(ctk.CTk):
         self.updating = False
 
     def _setar_bits_na_ui(self, valor):
-        """Atualiza visualmente os checkboxes sem disparar eventos em loop."""
         bits_ativos = BitConverter.int_to_bits(valor)
         for i in range(8):
             self.bits[i].set(bits_ativos[i])
