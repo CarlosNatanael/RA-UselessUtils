@@ -1,12 +1,17 @@
 import customtkinter as ctk
 from logic import BitConverter
 import os
+import sys
 
 class CalculadoraApp(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title("RA Tool - Cheevos Engineer")
-        caminho_icone = os.path.join(os.path.dirname(__file__), "icon.ico")
+        if hasattr(sys, '_MEIPASS'):
+            caminho_icone = os.path.join(sys._MEIPASS, "icon.ico")
+        else:
+            caminho_icone = os.path.join(os.path.dirname(__file__), "icon.ico")
+            
         try:
             self.iconbitmap(caminho_icone)
         except Exception as e:
