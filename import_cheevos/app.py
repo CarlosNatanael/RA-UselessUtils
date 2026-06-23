@@ -1,3 +1,5 @@
+import os
+import json
 import customtkinter as ctk
 from tkinter import messagebox
 from io import BytesIO
@@ -17,6 +19,7 @@ class RetroExporterApp(ctk.CTk):
         self.username = ""
         self.api_key = ""
         self.game_data = None
+        self.config_file = "config.json"
         
         # Configuração de grade para a janela principal
         self.grid_columnconfigure(0, weight=1)
@@ -26,6 +29,22 @@ class RetroExporterApp(ctk.CTk):
         self.login_frame = ctk.CTkFrame(self)
         self.main_frame = ctk.CTkFrame(self, fg_color="transparent")
         
+        self.check_login_cache()
+
+    def check_login_cache(self):
+        """Tenta carregar o arquivo de configuração local."""
+        if os.path.exists(self.config_file):
+            try:
+                with open(self.config_file, "r") as f:
+                    data = json.load(f)
+                    if "username" in data and "api_key" in data:
+                        self.username = data["username"]
+                        self.api_key = data["api_key"]
+                        self.build_main_screen()
+                        return
+            except Exception:
+                pass
+                
         self.build_login_screen()
 
     def build_login_screen(self):
@@ -42,9 +61,11 @@ class RetroExporterApp(ctk.CTk):
         self.entry_user = ctk.CTkEntry(self.login_frame, placeholder_text="Seu Usuário", width=300, height=40)
         self.entry_user.pack(pady=10)
         
-        # Oculta a chave de API visualmente por segurança
         self.entry_key = ctk.CTkEntry(self.login_frame, placeholder_text="Web API Key", width=300, height=40, show="*")
         self.entry_key.pack(pady=10)
+        
+        self.chk_remember = ctk.BooleanVar(value=True)
+        ctk.CTkCheckBox(self.login_frame, text="Lembrar de mim", variable=self.chk_remember).pack(pady=10)
         
         ctk.CTkButton(
             self.login_frame, 
@@ -53,10 +74,10 @@ class RetroExporterApp(ctk.CTk):
             width=300, 
             height=40,
             font=ctk.CTkFont(weight="bold")
-        ).pack(pady=30)
+        ).pack(pady=20)
 
     def do_login(self):
-        """Valida se os campos foram preenchidos e avança."""
+        """Valida se os campos foram preenchidos, salva o cache se necessário e avança."""
         user = self.entry_user.get().strip()
         key = self.entry_key.get().strip()
         
@@ -67,22 +88,55 @@ class RetroExporterApp(ctk.CTk):
         self.username = user
         self.api_key = key
         
-        # Oculta o painel de login e exibe o principal
+        # Cria o cache se o usuário marcou a opção
+        if self.chk_remember.get():
+            try:
+                with open(self.config_file, "w") as f:
+                    json.dump({"username": self.username, "api_key": self.api_key}, f)
+            except Exception as e:
+                messagebox.showerror("Erro", f"Não foi possível salvar o cache:\n{e}")
+        
         self.login_frame.grid_forget()
         self.build_main_screen()
+
+    def do_logout(self):
+        """Deleta o cache, limpa os dados da sessão e volta para o login."""
+        if os.path.exists(self.config_file):
+            try:
+                os.remove(self.config_file)
+            except Exception as e:
+                messagebox.showerror("Erro", f"Não foi possível deletar o cache:\n{e}")
+                
+        self.username = ""
+        self.api_key = ""
+        self.game_data = None
+        self.entry_user.delete(0, ctk.END)
+        self.entry_key.delete(0, ctk.END)
+        
+        self.main_frame.grid_forget()
+        self.build_login_screen()
 
     def build_main_screen(self):
         """Monta a interface de busca e exportação."""
         self.main_frame.grid(row=0, column=0, sticky="nsew", padx=20, pady=20)
         
-        # --- Barra de Busca ---
-        frame_search = ctk.CTkFrame(self.main_frame)
-        frame_search.pack(fill="x", pady=(0, 15))
+        # --- Barra de Busca e Logout ---
+        frame_top = ctk.CTkFrame(self.main_frame, fg_color="transparent")
+        frame_top.pack(fill="x", pady=(0, 15))
         
-        self.entry_id = ctk.CTkEntry(frame_search, placeholder_text="ID do Jogo (ex: 286)", width=200)
-        self.entry_id.pack(side="left", padx=15, pady=15)
+        self.entry_id = ctk.CTkEntry(frame_top, placeholder_text="ID do Jogo (ex: 286)", width=200)
+        self.entry_id.pack(side="left", padx=(0, 10))
         
-        ctk.CTkButton(frame_search, text="Buscar Jogo", command=self.fetch_game).pack(side="left", padx=10, pady=15)
+        ctk.CTkButton(frame_top, text="Buscar Jogo", command=self.fetch_game).pack(side="left", padx=5)
+        
+        ctk.CTkButton(
+            frame_top, 
+            text="Deslogar", 
+            command=self.do_logout, 
+            fg_color="#a52a2a",
+            hover_color="#800000",
+            width=80
+        ).pack(side="right", padx=5)
         
         # --- Informações do Jogo ---
         self.frame_info = ctk.CTkFrame(self.main_frame)
@@ -117,7 +171,7 @@ class RetroExporterApp(ctk.CTk):
             self.main_frame, 
             text="Gerar Lista de Conquistas", 
             command=self.generate_list,
-            fg_color="#2b8a3e", # Botão verde para destacar a ação principal
+            fg_color="#2b8a3e", 
             hover_color="#237032"
         ).pack(pady=5)
         
@@ -145,7 +199,6 @@ class RetroExporterApp(ctk.CTk):
             self.game_data = data
             self.label_title.configure(text=f"{data.get('Title')} ({data.get('ConsoleName')})")
             
-            # Processamento da imagem com CustomTkinter Image
             icon_path = data.get("ImageIcon")
             if icon_path:
                 img_url = f"https://retroachievements.org{icon_path}"
@@ -154,7 +207,7 @@ class RetroExporterApp(ctk.CTk):
                 
                 ctk_image = ctk.CTkImage(light_image=img_data, dark_image=img_data, size=(80, 80))
                 self.label_icon.configure(image=ctk_image, text="")
-                self.label_icon.image = ctk_image # Mantém a referência da imagem viva
+                self.label_icon.image = ctk_image
                 
         except Exception as e:
             messagebox.showerror("Erro de Conexão", f"Falha ao comunicar com o servidor:\n{e}")
