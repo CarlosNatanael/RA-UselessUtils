@@ -207,7 +207,7 @@ class RetroExporterApp(ctk.CTk):
                 
                 ctk_image = ctk.CTkImage(light_image=img_data, dark_image=img_data, size=(80, 80))
                 self.label_icon.configure(image=ctk_image, text="")
-                self.label_icon.image = ctk_image
+                self.label_icon.image = ctk_image # type:ignore
                 
         except Exception as e:
             messagebox.showerror("Erro de Conexão", f"Falha ao comunicar com o servidor:\n{e}")
@@ -219,7 +219,15 @@ class RetroExporterApp(ctk.CTk):
             return
             
         self.txt_output.delete("1.0", ctk.END)
-        achievements = self.game_data.get("Achievements", [])
+        
+
+        achievements_data = self.game_data.get("Achievements", {})
+        if isinstance(achievements_data, dict):
+            achievements = list(achievements_data.values())
+        else:
+            achievements = achievements_data
+            
+        achievements.sort(key=lambda x: int(x.get("DisplayOrder", 0)))
         
         for ach in achievements:
             parts = []
