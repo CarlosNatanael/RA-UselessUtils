@@ -14,7 +14,7 @@ class RetroExporterApp(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title("RetroAchievements Exporter")
-        self.geometry("650x700")
+        self.geometry("650x750")
         
         self.username = ""
         self.api_key = ""
@@ -88,7 +88,6 @@ class RetroExporterApp(ctk.CTk):
         self.username = user
         self.api_key = key
         
-        # Cria o cache se o usuário marcou a opção
         if self.chk_remember.get():
             try:
                 with open(self.config_file, "w") as f:
@@ -122,12 +121,22 @@ class RetroExporterApp(ctk.CTk):
         
         # --- Barra de Busca e Logout ---
         frame_top = ctk.CTkFrame(self.main_frame, fg_color="transparent")
-        frame_top.pack(fill="x", pady=(0, 15))
+        frame_top.pack(fill="x", pady=(0, 10))
         
-        self.entry_id = ctk.CTkEntry(frame_top, placeholder_text="ID do Jogo (ex: 286)", width=200)
+        self.entry_id = ctk.CTkEntry(frame_top, placeholder_text="ID do Jogo (ex: 3817)", width=180)
         self.entry_id.pack(side="left", padx=(0, 10))
         
-        ctk.CTkButton(frame_top, text="Buscar Jogo", command=self.fetch_game).pack(side="left", padx=5)
+        # Menu suspenso para escolher o tipo de filtro (f=3 padrão ou f=5 para incluir não oficiais/rebaixadas)
+        self.mode_var = ctk.StringVar(value="Oficiais e Não Oficiais (f=5)")
+        self.dropdown_mode = ctk.CTkOptionMenu(
+            frame_top, 
+            values=["Apenas Padrão (f=3)", "Oficiais e Não Oficiais (f=5)"],
+            variable=self.mode_var,
+            width=220
+        )
+        self.dropdown_mode.pack(side="left", padx=5)
+        
+        ctk.CTkButton(frame_top, text="Buscar Jogo", command=self.fetch_game, width=110).pack(side="left", padx=5)
         
         ctk.CTkButton(
             frame_top, 
@@ -154,17 +163,17 @@ class RetroExporterApp(ctk.CTk):
         
         # --- Filtros de Exportação ---
         frame_filters = ctk.CTkFrame(self.main_frame)
-        frame_filters.pack(fill="x", pady=15)
+        frame_filters.pack(fill="x", pady=10)
         
         self.chk_id = ctk.BooleanVar(value=True)
         self.chk_title = ctk.BooleanVar(value=True)
         self.chk_desc = ctk.BooleanVar(value=True)
         self.chk_points = ctk.BooleanVar(value=True)
         
-        ctk.CTkCheckBox(frame_filters, text="ID", variable=self.chk_id).pack(side="left", padx=20, pady=15)
-        ctk.CTkCheckBox(frame_filters, text="Título", variable=self.chk_title).pack(side="left", padx=20, pady=15)
-        ctk.CTkCheckBox(frame_filters, text="Descrição", variable=self.chk_desc).pack(side="left", padx=20, pady=15)
-        ctk.CTkCheckBox(frame_filters, text="Pontos", variable=self.chk_points).pack(side="left", padx=20, pady=15)
+        ctk.CTkCheckBox(frame_filters, text="ID", variable=self.chk_id).pack(side="left", padx=15, pady=12)
+        ctk.CTkCheckBox(frame_filters, text="Título", variable=self.chk_title).pack(side="left", padx=15, pady=12)
+        ctk.CTkCheckBox(frame_filters, text="Descrição", variable=self.chk_desc).pack(side="left", padx=15, pady=12)
+        ctk.CTkCheckBox(frame_filters, text="Pontos", variable=self.chk_points).pack(side="left", padx=15, pady=12)
         
         # --- Geração e Saída ---
         ctk.CTkButton(
@@ -175,80 +184,93 @@ class RetroExporterApp(ctk.CTk):
             hover_color="#237032"
         ).pack(pady=5)
         
-        self.txt_output = ctk.CTkTextbox(self.main_frame, height=250, font=ctk.CTkFont(family="Consolas", size=13))
-        self.txt_output.pack(fill="both", expand=True, pady=15)
+        self.txt_output = ctk.CTkTextbox(self.main_frame, height=220, font=ctk.CTkFont(family="Consolas", size=13))
+        self.txt_output.pack(fill="both", expand=True, pady=10)
 
     def fetch_game(self):
-        """Faz a requisição para a API oficial."""
+        """Faz a requisição para a API estendida usando o parâmetro 'f' conforme a documentação."""
         game_id = self.entry_id.get().strip()
         if not game_id:
             messagebox.showerror("Erro", "Digite um ID de jogo válido.")
             return
             
-        url = f"https://retroachievements.org/API/API_GetGameProgression.php?i={game_id}&y={self.api_key}"
+        # Define o parâmetro f com base na escolha do menu suspenso (Documentação: f=5 para Unofficial/demoted)
+        f_value = 5 if "f=5" in self.mode_var.get() else 3
+        
+        url = f"https://retroachievements.org/API/API_GetGameExtended.php?i={game_id}&y={self.api_key}&f={f_value}"
         
         try:
             response = requests.get(url)
             response.raise_for_status()
             data = response.json()
             
-            if "Title" not in data:
+            title = data.get("Title") or data.get("title")
+            if not title:
                 messagebox.showerror("Erro", "Jogo não encontrado ou sua API Key está incorreta.")
                 return
                 
             self.game_data = data
-            self.label_title.configure(text=f"{data.get('Title')} ({data.get('ConsoleName')})")
+            self.label_title.configure(text=f"{title} ({data.get('ConsoleName', data.get('consoleName', 'GBA'))})")
             
-            icon_path = data.get("ImageIcon")
+            icon_path = data.get("ImageIcon") or data.get("imageIcon")
             if icon_path:
-                img_url = f"https://retroachievements.org{icon_path}"
-                img_res = requests.get(img_url)
-                img_data = Image.open(BytesIO(img_res.content))
-                
-                ctk_image = ctk.CTkImage(light_image=img_data, dark_image=img_data, size=(80, 80))
-                self.label_icon.configure(image=ctk_image, text="")
-                self.label_icon.image = ctk_image # type:ignore
+                img_url = f"https://retroachievements.org{icon_path}" if icon_path.startswith("/") else icon_path
+                try:
+                    img_res = requests.get(img_url)
+                    img_data = Image.open(BytesIO(img_res.content))
+                    ctk_image = ctk.CTkImage(light_image=img_data, dark_image=img_data, size=(80, 80))
+                    self.label_icon.configure(image=ctk_image, text="")
+                    self.label_icon.image = img_data # type:ignore
+                except Exception:
+                    pass
                 
         except Exception as e:
             messagebox.showerror("Erro de Conexão", f"Falha ao comunicar com o servidor:\n{e}")
 
     def generate_list(self):
         """Gera o texto final baseado nas caixas de seleção marcadas."""
-        if not self.game_data or "Achievements" not in self.game_data:
+        if not self.game_data:
             messagebox.showwarning("Aviso", "Busque um jogo válido primeiro.")
+            return
+            
+        achievements_data = self.game_data.get("Achievements") or self.game_data.get("achievements") or {}
+        
+        if not achievements_data:
+            messagebox.showwarning("Aviso", "Nenhuma conquista encontrada para este jogo na resposta da API.")
             return
             
         self.txt_output.delete("1.0", ctk.END)
         
-
-        achievements_data = self.game_data.get("Achievements", {})
         if isinstance(achievements_data, dict):
             achievements = list(achievements_data.values())
         else:
             achievements = achievements_data
             
-        achievements.sort(key=lambda x: int(x.get("DisplayOrder", 0)))
+        achievements.sort(key=lambda x: int(x.get("DisplayOrder", 0) or x.get("displayOrder", 0) or 0))
         
         for ach in achievements:
             parts = []
+            ach_id = str(ach.get("ID") or ach.get("id") or "")
             if self.chk_id.get():
-                parts.append(str(ach.get("ID", "")))
+                parts.append(ach_id)
                 
             prefix = " | " if (self.chk_id.get() and (self.chk_title.get() or self.chk_desc.get() or self.chk_points.get())) else ""
             
             content_parts = []
+            ach_title = ach.get("Title") or ach.get("title") or ""
             if self.chk_title.get():
-                content_parts.append(ach.get("Title", ""))
+                content_parts.append(ach_title)
                 
+            ach_desc = ach.get("Description") or ach.get("description") or ""
             if self.chk_desc.get():
-                desc = ach.get("Description", "")
-                if self.chk_title.get():
-                    content_parts[-1] = f"{content_parts[-1]}: {desc}"
+                if self.chk_title.get() and content_parts:
+                    content_parts[-1] = f"{content_parts[-1]}: {ach_desc}"
                 else:
-                    content_parts.append(desc)
+                    content_parts.append(ach_desc)
                     
             if self.chk_points.get():
-                pts = f"({ach.get('Points', 0)})"
+                pts_val = ach.get("Points") or ach.get("points") or 0
+                pts = f"({pts_val})"
                 content_parts.append(pts)
                 
             main_content = " ".join(content_parts).replace(" : ", ": ")
