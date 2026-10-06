@@ -11,11 +11,9 @@ ctk.set_default_color_theme("blue")
 
 def obter_caminho_recurso(relative_path):
     try:
-        # O PyInstaller cria uma pasta temporária em sys._MEIPASS
         base_path = sys._MEIPASS
     except Exception:
         base_path = os.path.abspath(".")
-    
     return os.path.join(base_path, relative_path)
 
 
@@ -25,8 +23,8 @@ class PyHasherApp(ctk.CTk):
         super().__init__()
 
         self.title("PyHasher")
-        self.geometry("600x400")
-        self.minsize(550, 350)
+        self.geometry("630x530")
+        self.minsize(550, 380)
 
         # Configuração do Grid principal
         self.grid_columnconfigure(0, weight=1)
@@ -70,7 +68,7 @@ class PyHasherApp(ctk.CTk):
             self.frame_config, values=self.system_options, width=200
         )
         self.combo_system.grid(row=0, column=1, padx=10, pady=10)
-        self.combo_system.set(self.system_options[0])
+        self.combo_system.set(self.system_options[4])
 
         self.check_verbose = ctk.CTkCheckBox(
             self.frame_config, text="Modo Verbose (-v)"
@@ -97,7 +95,7 @@ class PyHasherApp(ctk.CTk):
         )
         self.lbl_output.grid(row=0, column=0, padx=10, pady=(10, 0), sticky="w")
 
-        self.txt_output = ctk.CTkTextbox(self.frame_output, width=540, height=150)
+        self.txt_output = ctk.CTkTextbox(self.frame_output, width=540, height=160, font=("Consolas", 12))
         self.txt_output.grid(row=1, column=0, padx=10, pady=10, sticky="nsew")
 
     def browse_rom(self):
@@ -109,29 +107,23 @@ class PyHasherApp(ctk.CTk):
             self.entry_file.insert(0, filename)
 
     def run_rahasher(self):
-        # Aqui ele procura o executável embutido ou na mesma pasta durante o desenvolvimento
         exe_path = obter_caminho_recurso("RAHasher.exe")
         rom_path = self.entry_file.get().strip()
         selected_system = self.combo_system.get()
 
         system_id = selected_system.split(" - ")[0]
 
+        self.txt_output.delete("1.0", tk.END)
+
         if not os.path.exists(exe_path):
-            self.txt_output.delete("0.0", tk.END)
-            self.txt_output.insert(
-                "0.0", f"Erro: RAHasher.exe oculto não encontrado em:\n{exe_path}"
-            )
+            self.txt_output.insert("1.0", f"[ERRO] RAHasher.exe não encontrado em:\n{exe_path}")
             return
 
         if not os.path.exists(rom_path):
-            self.txt_output.delete("0.0", tk.END)
-            self.txt_output.insert(
-                "0.0", f"Erro: O ficheiro de ROM não foi encontrado em:\n{rom_path}"
-            )
+            self.txt_output.insert("1.0", f"[ERRO] Arquivo de ROM não encontrado em:\n{rom_path}")
             return
 
         cmd = [exe_path]
-
         if self.check_verbose.get() == 1:
             cmd.append("-v")
 
@@ -139,7 +131,6 @@ class PyHasherApp(ctk.CTk):
         cmd.append(rom_path)
 
         try:
-            # CREATE_NO_WINDOW (0x08000000) impede que a janela do terminal pisque no Windows
             creationflags = 0
             if os.name == 'nt':
                 creationflags = 0x08000000 
@@ -154,24 +145,43 @@ class PyHasherApp(ctk.CTk):
                 creationflags=creationflags
             )
 
-            self.txt_output.delete("0.0", tk.END)
+            stdout_data = result.stdout.strip() if result.stdout else ""
+            stderr_data = result.stderr.strip() if result.stderr else ""
 
-            output_text = ""
-            if result.stdout:
-                output_text += f"[Saída]:\n{result.stdout}\n"
-            if result.stderr:
-                output_text += f"[Erros/Logs]:\n{result.stderr}\n"
+            formatted_output = "========================================\n"
+            formatted_output += "STATUS: Executado com sucesso\n"
+            formatted_output += "========================================\n\n"
 
-            if not output_text:
-                output_text = "Executado, mas nenhuma saída foi retornada."
+            if stdout_data:
+                lines = stdout_data.splitlines()
+                hash_encontrado = None
+                linhas_limpas = []
+                
+                for line in lines:
+                    cleaned = line.strip()
+                    # Identifica se a linha é o hash isolado de 32 caracteres hexadecimais
+                    if len(cleaned) == 32 and all(c in "0123456789abcdefABCDEF" for c in cleaned):
+                        hash_encontrado = cleaned
+                        continue
+                    linhas_limpas.append(line)
 
-            self.txt_output.insert("0.0", output_text)
+                if hash_encontrado:
+                    formatted_output += f"HASH PRINCIPAL:\n{hash_encontrado}\n\n"
+
+                logs_finais = "\n".join(linhas_limpas).strip()
+                if logs_finais:
+                    formatted_output += f"LOGS DE EXECUÇÃO:\n{logs_finais}\n"
+
+            if stderr_data:
+                formatted_output += f"\nAVISOS / ERROS:\n{stderr_data}\n"
+
+            if not stdout_data and not stderr_data:
+                formatted_output += "Nenhum retorno gerado pelo executável."
+
+            self.txt_output.insert("1.0", formatted_output)
 
         except Exception as e:
-            self.txt_output.delete("0.0", tk.END)
-            self.txt_output.insert(
-                "0.0", f"Ocorreu um erro ao executar o processo:\n{str(e)}"
-            )
+            self.txt_output.insert("1.0", f"[EXCEÇÃO CRÍTICA]:\n{str(e)}")
 
 if __name__ == "__main__":
     app = PyHasherApp()
